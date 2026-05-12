@@ -1,6 +1,6 @@
-pub mod custom_script;
+pub mod script;
 
-use custom_script::{CustomScript, CustomScriptInspector};
+use script::{Script, ScriptInspector};
 use serde_json::Value as JsonValue;
 use std::{
     collections::{HashMap, HashSet},
@@ -9,10 +9,10 @@ use std::{
 };
 use tracing::debug;
 
-use crate::backend::from_sys::custom_script::{InspectorError, MatParser};
+use crate::backend::from_sys::script::{InspectorError, MatParser};
 
 #[derive(Debug)]
-pub enum CustomError {
+pub enum FromSysError {
     Inspector(InspectorError),
     Io(std::io::Error),
 }
@@ -21,12 +21,12 @@ pub struct FromSys {
     pub base_command: String,
     pub print_value_pattern: String,
     pub input_value_pattern: String,
-    pub script_inspector: CustomScriptInspector,
+    pub script_inspector: ScriptInspector,
 }
 
 impl super::Backend for FromSys {
-    type Script = CustomScript;
-    type Error = CustomError;
+    type Script = Script;
+    type Error = FromSysError;
 
     fn run_scripts(
         &self,
@@ -48,17 +48,17 @@ impl super::Backend for FromSys {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .map_err(CustomError::Io)?;
+            .map_err(FromSysError::Io)?;
 
         let mut stdin = child.stdin.take().unwrap();
         let mut stdout = child.stdout.take().unwrap();
 
         stdin
             .write_all(script.as_bytes())
-            .map_err(CustomError::Io)?;
-        stdin.write_all("\n".as_bytes()).map_err(CustomError::Io)?;
+            .map_err(FromSysError::Io)?;
+        stdin.write_all("\n".as_bytes()).map_err(FromSysError::Io)?;
 
-        stdin.flush().map_err(CustomError::Io)?;
+        stdin.flush().map_err(FromSysError::Io)?;
 
         self.get_data(&mut stdout)
     }
@@ -129,7 +129,7 @@ printf("{end_out_block}")
             "#
             ),
             input_value_pattern: "input_data = jsondecode({});".to_string(),
-            script_inspector: CustomScriptInspector {
+            script_inspector: ScriptInspector {
                 restricted_functions: HashSet::new(),
                 parser: Box::new(MatParser {}) as _,
             },
@@ -138,13 +138,13 @@ printf("{end_out_block}")
 
     fn get_script(
         &self,
-        script: CustomScript,
+        script: Script,
         data: &HashMap<String, JsonValue>,
-    ) -> Result<String, CustomError> {
+    ) -> Result<String, FromSysError> {
         let mut base_script = self
             .script_inspector
             .to_string(script)
-            .map_err(CustomError::Inspector)?;
+            .map_err(FromSysError::Inspector)?;
         if !base_script.is_empty() {
             let pos = base_script.rfind('\n').map_or(0, |p| p + 1);
             base_script.insert_str(pos, &format!("{} = ", self.get_result_name()));
@@ -164,7 +164,7 @@ printf("{end_out_block}")
         Ok(base_script)
     }
 
-    fn get_data(&self, stdout: &mut ChildStdout) -> Result<super::Values, CustomError> {
+    fn get_data(&self, stdout: &mut ChildStdout) -> Result<super::Values, FromSysError> {
         let start_marker = Self::get_start_out_block().replace("\\n", "\n");
         let end_marker = Self::get_end_out_block().replace("\\n", "\n");
 
@@ -172,7 +172,7 @@ printf("{end_out_block}")
         let mut out = String::new();
         loop {
             let mut line = String::new();
-            buf_reader.read_line(&mut line).map_err(CustomError::Io)?;
+            buf_reader.read_line(&mut line).map_err(FromSysError::Io)?;
             out = format!("{out}\n{line}");
 
             let start_idx = out.rfind(&start_marker);

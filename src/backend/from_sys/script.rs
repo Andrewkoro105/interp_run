@@ -12,22 +12,22 @@ pub enum InspectorError {
 
 pub struct MatParser {}
 
-pub struct CustomScriptInspector {
+pub struct ScriptInspector {
     pub restricted_functions: HashSet<String>,
     pub parser: Box<dyn Parser>,
 }
 
-pub struct CustomScript(String);
+pub struct Script(String);
 
-impl CustomScriptInspector {
-    pub fn to_string(&self, custom_script: CustomScript) -> Result<String, InspectorError> {
+impl ScriptInspector {
+    pub fn to_string(&self, script: Script) -> Result<String, InspectorError> {
         if !self.restricted_functions.is_empty() {
             let use_unsafe_functions = self
                 .restricted_functions
                 .intersection(
                     &self
                         .parser
-                        .get_use_fns(custom_script.0.clone())
+                        .get_use_fns(script.0.clone())
                         .map_err(|err| err.to_string())
                         .map_err(InspectorError::ParsingError)?,
                 )
@@ -38,11 +38,11 @@ impl CustomScriptInspector {
                 return Err(InspectorError::UseUnsafeFunctions(use_unsafe_functions));
             }
         }
-        Ok(custom_script.0)
+        Ok(script.0)
     }
 }
 
-impl From<String> for CustomScript {
+impl From<String> for Script {
     fn from(value: String) -> Self {
         Self(value)
     }
