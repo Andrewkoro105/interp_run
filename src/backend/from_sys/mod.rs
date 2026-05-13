@@ -99,11 +99,7 @@ for k = 1:length(vars)
     
     if isnumeric(value) || islogical(value) || ischar(value) || isstring(value) || ...
        isstruct(value) || iscell(value)
-        if ndims(value) > 2
-            allVars.(name) = struct('data', value(:), 'size', size(value), 'class', class(value));
-        else
-            allVars.(name) = value;
-        end
+        allVars.(name) = value;
         
     elseif istable(value)
         allVars.(name) = table2struct(value);
@@ -112,7 +108,7 @@ for k = 1:length(vars)
         allVars.(name) = string(value);
         
     elseif iscomplex(value)
-        allVars.(name) = struct('real', real(value), 'imag', imag(value));
+        allVars.(name) = struct('re', real(value), 'im', imag(value));
         
     elseif issparse(value)
         [i,j,s] = find(value);
@@ -144,7 +140,9 @@ printf("{end_out_block}")
         let mut base_script = self
             .script_inspector
             .to_string(script)
-            .map_err(FromSysError::Inspector)?;
+            .map_err(FromSysError::Inspector)?
+            .trim()
+            .to_string();
         if !base_script.is_empty() {
             let pos = base_script.rfind('\n').map_or(0, |p| p + 1);
             base_script.insert_str(pos, &format!("{} = ", self.get_result_name()));
@@ -230,9 +228,7 @@ mod test {
             .run_script("input_data.test_value ^ 2".to_string().into(), data)
             .unwrap()
             .get_result()
-            .as_number()
-            .unwrap()
-            .as_u128()
+            .as_u64()
             .unwrap();
 
         assert_eq!(script_result, 1764);
